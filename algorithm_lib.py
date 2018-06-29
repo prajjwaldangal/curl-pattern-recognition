@@ -11,7 +11,9 @@ N = 8
 
 # variations:
 #   different curl pattern, different hair
+#   camera angle
 #
+
 
 def load_preprocess_contours(path, n, inv=True):
     """
@@ -56,6 +58,8 @@ def load_preprocess_contours(path, n, inv=True):
     return originals, grays, only_hair, conts_ls, canny
 
 
+# plots from a list consisting of four images
+# TO-DO: make dim general; plt may not support it
 def plotting(ls, fig):
     plt.figure(fig)
 
@@ -87,7 +91,7 @@ def plotting(ls, fig):
 
     plt.show()
 
-
+#
 def blur(ls):
     blurred = []
     for img in ls:
@@ -120,12 +124,54 @@ def plot_imgs(only_hair, path, n, orig=[], gray=[], conts_ls=[], canny=[]):
     return
 
 
-def plot_contour_nth(n, conts_ls):
+# for comparison of different hair types
+def plot_hair_types(root):
+    # root is the root directory that contains
+    # all the other hair types
+    hair_types = ["3c hair", "4a hair", "4b hair", "4c hair"]
+
+    # rename image files into uniform numeric with ext
+    for i in range(4):
+        files = os.listdir(root+"/algo/downloads/"+hair_types[i]+"/")
+        l = len(files)
+        for i in range(l):
+            os.rename(files[i], str(i+1)+ ".png")
+
+    # randomly select filenames between 1 and number of files in dir
+    for i in range(4):
+        files = os.listdir(root+"/algo/downloads/"+hair_types[i]+"/")
+        l = len(files)
+        for j in range(2):
+            n = random.randint(1, l)
+            # os.listdir, os.rename
+
+
+    for i in range(4):
+        pass
+        # plot two
     pass
 
 
-#
 originals, _, only_hair, conts_ls, canny = load_preprocess_contours(path, 4)
+# the following line is used to compare original, contours and canny images
 plot_imgs(only_hair, path, 4, canny=canny, conts_ls=conts_ls)
-# compare original, contours and canny -->  done
-#
+
+# returns image obtained after subtracting image from face_cascade coordinates
+def face_cascade():
+    face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+
+    img = cv2.imread('file1.jpg')
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) # intensity image
+
+    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    # faces is returned as a four number array/tuple, must be
+    #       two coordinates that denote the centroid of the bounding
+    #       rectangle and two values for height and width of the
+    #       bounding rectangle
+
+    return gray - faces
+
+subtracted_img = face_cascade()
+cv2.imshow('substracted_img', subtracted_img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
