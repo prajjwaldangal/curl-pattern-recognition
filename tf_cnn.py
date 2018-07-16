@@ -6,8 +6,9 @@ Our network uses a combination of pixel intensities and weights.
 The neural network specifications:
 Zero padding = 1 on each edge
 Stride = 2 both horizontally and vertically
-    1x32x32 - 32C3   -   MP2 -  16C2  -  MP2   - 8C2  - 10N - 4N - 1N (class prediction)
+    1x32x32 - 256C3   -   MP2 -  16C2  -  MP2   - 8C2  - 10N - 4N - 1N (class prediction)
     input     32x16x16  32x8x8  16x4x4  16x2x2  8x1x1
+    
 # output volume formula:  (Img width−Filter size+2*Padding)/Stride+1
 
 30x30 input images, 3  conv. layer, 2 max. pool layers, 2 fully-conn. layers
@@ -18,6 +19,12 @@ activation function = relu
 # segmentation specifications:
     segment only the hair part with high precision
     
+
+07/16/2018 notes for team meeting:
+figured out input with tensorflow
+initialized some of the architecture specifications
+
+    
 """
 
 # Convolutional Layer 1.
@@ -25,12 +32,12 @@ filter_size1 = 3
 num_filters1 = 32
 
 # Convolutional Layer 2.
-filter_size2 = 3
-num_filters2 = 32
+filter_size2 = 2
+num_filters2 = 16
 
 # Convolutional Layer 3.
-filter_size3 = 3
-num_filters3 = 64
+filter_size3 = 2
+num_filters3 = 8
 
 # Fully-connected layer.
 fc_size = 128             # Number of neurons in fully-connected layer.
@@ -61,51 +68,17 @@ validation_size = .16
 # how long to wait after validation loss stops improving before terminating training
 early_stopping = None  # use None if you don't want to implement early stoping
 
-train_path = 'data/train/'
-test_path = 'data/test/test/'
-checkpoint_dir = "models/"
+train_path = 'data/train/' # + '3c'/'4a'/'4b' ...
+test_path = 'data/test/' # similar to train path
+checkpoint_dir = "models/" #
 
-def conv_forward_naive(x, w, b, conv_param):
-    """
-    A naive implementation of the forward pass for a convolutional layer.
+# the matrices to be learnt
+def new_weights(shape):
+    return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
 
-    The input consists of N data points, each with C channels, height H and
-    width W. We convolve each input with F different filters, where each filter
-    spans all C channels and has height HH and width WW.
-
-    Input:
-    - x: Input data of shape (N, C, H, W)
-    - w: Filter weights of shape (F, C, HH, WW)
-    - b: Biases, of shape (F,)
-    - conv_param: A dictionary with the following keys:
-      - 'stride': The number of pixels between adjacent receptive fields in the
-        horizontal and vertical directions.
-      - 'pad': The number of pixels that will be used to zero-pad the input.
-
-
-    During padding, 'pad' zeros should be placed symmetrically (i.e equally on both sides)
-    along the height and width axes of the input. Be careful not to modfiy the original
-    input x directly.
-
-    Returns a tuple of:
-    - out: Output data, of shape (N, F, H', W') where H' and W' are given by
-      H' = 1 + (H + 2 * pad - HH) / stride
-      W' = 1 + (W + 2 * pad - WW) / stride
-    - cache: (x, w, b, conv_param)
-    """
-    out = None
-    ###########################################################################
-    # TODO: Implement the convolutional forward pass.                         #
-    # Hint: you can use the function np.pad for padding.                      #
-    ###########################################################################
-    pass
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
-    cache = (x, w, b, conv_param)
-    return out, cache
-
-
+# the biases, also are learnt
+def new_biases(length):
+    return tf.Variable(tf.constant(0.05, shape=[length]))
 
 # we need to reduce the 4-dim tensor to 2-dim which can be used as 
 # input to the fully-connected layer
@@ -115,9 +88,123 @@ def flatten_layer(layer):
     # to num_features and the size of the first dimension to -1
     # which means the size in that dimension is calculated
     # so the total size of the tensor is unchanged from the reshaping.
+    # i.e. the first dimension will be num_of_elements_
     layer_flat = tf.reshape(layer, [-1, num_features])
-    # partial derivative
 
+
+# tensor types in tensorflow
+# Rank 0 tensors: tf.Variable("Elephant", tf.string), tf.Variable(451/3.14159/2.2+7j, tf.int16, tf.float64,
+#                                                                                     tf.complex64) respectively
+# Rank 1 tensors: tf.Variable(["Elephant"]/[3.1416, 2.7183]/[2,3,4]/[12+7j, 2-3.5j],
+#                                                           tf.string/tf.float32/tf.int32/tf.complex64) respectively
+# similarly rank 2 would be list of list, rank 3 would be list of list of list
+
+# a rank 2 tensor with shape [3,4] : [ [1, 2, 3, 4], [2, 4, 6, 8], [-1, -2, -3, -4] ]
+# following is a rank 3 tensor with shape [1, 4, 3]:
+# [ [
+#       [ 1, 2, 3 ],
+#       [ 2, 4, 6 ],
+#       [ 3, 6, 9 ],
+#       [ 5, 10, 15 ]
+#  ], [
+#       [-1, -2, -3],
+#       [-2, -4, -6],
+#       [-3, -6, -9],
+#       [-5, -10, -15]
+#   ] ], more info: https://www.tensorflow.org/guide/tensors
+rank_three_tensor = tf.ones([3,4,5])
+rank_three_tensor_np = np.ones((3,4,5))
+r_two_tf = tf.reshape(rank_three_tensor, [10,-1])
+r_two_np = rank_three_tensor_np.reshape((10,6))
+
+
+# concerned with only the input at this point
+x = tf.placeholder(tf.float32, (30, 30), name = 'x')
+# tf.train.GradientDescentOptimizer vs tf.train.AdamOptimizer for mnist vs cnn respectively.
+session = tf.Session()
+session.run(tf.initialize_all_variables())
+# try help(tf.placeholder) for code with feeding
+
+def fetch_data(n):
+    """
+
+    :param n: the number of images to fetch
+    :return: TBD
+    """
+
+
+# Counter for total number of iterations performed so far.
+total_iterations = 0
+import time
+def optimize(num_iterations):
+    # Ensure we update the global variable rather than a local copy.
+    global total_iterations
+
+    # Start-time used for printing time-usage below.
+    start_time = time.time()
+
+    best_val_loss = float("inf")
+    patience = 0
+
+    for i in range(total_iterations,
+                   total_iterations + num_iterations):
+
+        # Get a batch of training examples.
+        # x_batch now holds a batch of images and
+        # y_true_batch are the true labels for those images.
+        x_batch, y_true_batch, _, cls_batch = data.train.next_batch(train_batch_size)
+        x_valid_batch, y_valid_batch, _, valid_cls_batch = data.valid.next_batch(train_batch_size)
+
+        # Convert shape from [num examples, rows, columns, depth]
+        # to [num examples, flattened image shape]
+
+        x_batch = x_batch.reshape(train_batch_size, img_size_flat)
+        x_valid_batch = x_valid_batch.reshape(train_batch_size, img_size_flat)
+
+        # Put the batch into a dict with the proper names
+        # for placeholder variables in the TensorFlow graph.
+        feed_dict_train = {x: x_batch,
+                           y_true: y_true_batch}
+
+        feed_dict_validate = {x: x_valid_batch,
+                              y_true: y_valid_batch}
+
+        # Run the optimizer using this batch of training data.
+        # TensorFlow assigns the variables in feed_dict_train
+        # to the placeholder variables and then runs the optimizer.
+        session.run(optimizer, feed_dict=feed_dict_train)
+
+
+        # Print status at end of each epoch (defined as full pass through training dataset).
+        if i % int(data.train.num_examples/batch_size) == 0:
+            val_loss = session.run(cost, feed_dict=feed_dict_validate)
+            epoch = int(i / int(data.train.num_examples/batch_size))
+
+            print_progress(epoch, feed_dict_train, feed_dict_validate, val_loss)
+
+            if early_stopping:
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    patience = 0
+                else:
+                    patience += 1
+
+                if patience == early_stopping:
+                    break
+
+    # Update the total number of iterations performed.
+    total_iterations += num_iterations
+
+    # Ending time.
+    end_time = time.time()
+
+    # Difference between start and end-times.
+    time_dif = end_time - start_time
+
+    # Print the time-usage.
+    print("Time elapsed: " + str(timedelta(seconds=int(round(time_dif)))))
+
+# help(tf.keras)
 # https://www.tensorflow.org/tutorials/deep_cnn
 # vs
 # https://github.com/rdcolema/tensorflow-image-classification/blob/master/cnn.ipynb
