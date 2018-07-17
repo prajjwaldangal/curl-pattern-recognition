@@ -100,17 +100,6 @@ def plotting(ls, fig):
 
     plt.show()
 
-def plotting2(images, n):
-    """
-
-    :param images: images that will eventually be plotted
-    :param n: figure number
-    :return: NA
-    """
-    plt.figure(n)
-    l = len(images)
-
-
 #
 def blur(ls):
     """
@@ -131,7 +120,7 @@ def blur(ls):
 
 # Specifically, compare original, contours and canny images.
 # TO-DO: add hair_type argument and changes
-def plot_imgs(only_hair, path, n, orig=[], gray=[], conts_ls=[], canny=[]):
+def plotting2(only_hair, path, n, orig=[], gray=[], conts_ls=[], canny=[]):
     i = 0
     conts_imgs = []
     for i in range(n):
@@ -158,24 +147,21 @@ def batch_rename(hair_type, root="/Users/prajjwaldangal/Documents/cs/summer2018/
     #       "/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/"
 
     # rename image files into uniform numeric with ext
-    j = hair_types.index(hair_type.lower())
-    files = os.listdir(os.path.join(root,hair_types[j]))
-    l = len(files)
-    for i in range(l):
-        # /Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/ + 3c/ + <name> -> 1.png
-        os.rename(os.path.join(root, hair_types[j], files[i]),
-                  os.path.join(root, hair_types[j], str(i+1) + ".png"))
+    pass
 
-    print(l, [i for i in sorted(os.listdir(os.path.join(root,hair_types[j])))])
-k = batch_rename("4a")
-            # FileNotFoundError: [Errno 2]. No such file or directory: '495. 2v93z3l.jpg' -> '1.png'
+## plot 400 images, 100 images for each class
+def plotting3(class):
+    root = "/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads"
+    _, grays, _, _, _ = load_preprocess_contours(root, class, 100, inv=True)
+    
+
 
 # 1. Run batch_rename once
 # 2. Run load preprocess contours with the appropriate path.
 path = "/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads"
 only_hair_ls, grays, originals, conts_ls, canny_ls = load_preprocess_contours(
     "/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads", "4b", 4)
-plot_imgs(only_hair_ls, path, 4, orig=soriginals, gray=grays, conts_ls=conts_ls, canny=canny_ls)
+plotting2(only_hair_ls, path, 4, orig=originals, gray=grays, conts_ls=conts_ls, canny=canny_ls)
 
 # returns image obtained after subtracting image from face_cascade coordinates
 def face_cascade():
@@ -234,14 +220,13 @@ def mean_shift(path, n):
     term_crit = ( cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1 )
     for i in range(n):
         img = cv2.imread(os.path.join(path, str(n)+".png"))
-        gray = cv2.cvtColor(img, cv.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # applyColorMap applies a GNU Octave/MATLAB equivalent colormap on a given image
         # cv2.applyColorMap(src, colormap [, dst]) -> dst
         ret, thresh = cv.threshold(gray, 100, 255, cv.THRESH_BINARY_INV)
         # apply cv2.calcHist and cv2.calcBackProject
         hist = cv2.calcHist([gray], [0], None, [255-100], [100, 255])
         ret, track_window = cv.meanShift(dst, track_window, term_crit)
-
 
 """
 
