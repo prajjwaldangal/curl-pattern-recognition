@@ -153,7 +153,7 @@ def batch_rename(hair_type, root="/Users/prajjwaldangal/Documents/cs/summer2018/
 def plotting3(class):
     root = "/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads"
     _, grays, _, _, _ = load_preprocess_contours(root, class, 100, inv=True)
-    
+
 
 
 # 1. Run batch_rename once

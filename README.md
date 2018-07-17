@@ -1,1 +1,1 @@
-Note: 3c is a cleaned directory
+This directory contains preprocessing and tensorflow code for hair pattern recognition.
