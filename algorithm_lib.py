@@ -85,6 +85,8 @@ def load_preprocess_contours(hair_type, n, inv=True):
         # Carriage return ("\r") means to return to the beginning of the current line without advancing downward.
         # The name comes from a printer's carriage
         sys.stdout.write("\r")
+    dots(7)
+    sys.stdout.write("\n")
     return only_hair, grays, originals, conts_ls, canny
 
 
@@ -255,9 +257,9 @@ def mean_shift(hair_type, n):
         return imgs
 
 
-if __name__ == '__main__':
-    batch_rename("4c")
-    pass
+# if __name__ == '__main__':
+#     batch_rename("4c")
+#     pass
 
 # imgs = mean_shift("/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/4c", 50)
 # print("Shape: {} x {}".format(len(imgs), len(imgs[0])))

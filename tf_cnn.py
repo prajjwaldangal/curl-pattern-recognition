@@ -126,7 +126,8 @@ r_two_np = rank_three_tensor_np.reshape((10,6))
 x = tf.placeholder(tf.float32, (30, 30), name = 'x')
 # tf.train.GradientDescentOptimizer vs tf.train.AdamOptimizer for mnist vs cnn respectively.
 session = tf.Session()
-session.run(tf.initialize_all_variables())
+
+# session.run(tf.initialize_all_variables())  --> will be removed after 2017-03-02
 # try help(tf.placeholder) for code with feeding
 
 def fetch_data():
@@ -137,8 +138,9 @@ def fetch_data():
     bin3c, _, _, _, _ = alib.load_preprocess_contours("3c", 200)
     # bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 200)
     #bin4b, _, _, _, _ = alib.load_preprocess_contours("4b", 200)
-    # bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 200)
-    arr = [bin3c]
+    bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 200)
+    arr = [bin3c, bin4c]
+    # plt2.Index(arr, ["3c", "4c"]).plot_new_figure()
     plt2.Index(arr, ["3c", "4c"]).plot()
 
     # mix
