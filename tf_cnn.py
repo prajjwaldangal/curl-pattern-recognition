@@ -1,5 +1,9 @@
 import tensorflow as tf
 
+import algorithm_lib as alib
+
+import plot_lib as plt2
+
 """"
 Our network uses a combination of pixel intensities and weights.
 
@@ -125,13 +129,30 @@ session = tf.Session()
 session.run(tf.initialize_all_variables())
 # try help(tf.placeholder) for code with feeding
 
-def fetch_data(n):
+def fetch_data():
     """
-
-    :param n: the number of images to fetch
     :return: TBD
     """
 
+    bin, _, _, _, _ = alib.load_preprocess_contours("3c", 200)
+    plt2.plotting(bin, "3c")
+    bin, _, _, _, _ = alib.load_preprocess_contours("4a", 200)
+    plt2.plotting(bin, "3c")
+    bin, _, _, _, _ = alib.load_preprocess_contours("4b", 200)
+    plt2.plotting(bin, "3c")
+    bin, _, _, _, _ = alib.load_preprocess_contours("4c", 200)
+    plt2.plotting(bin, "3c")
+
+    # mix
+
+
+    feed_dict_train = {x: x_batch,
+                       y_true: y_true_batch}
+
+    feed_dict_validate = {x: x_valid_batch,
+                          y_true: y_valid_batch}
+
+fetch_data()
 
 # Counter for total number of iterations performed so far.
 total_iterations = 0
