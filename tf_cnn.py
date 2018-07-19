@@ -1,7 +1,7 @@
 import tensorflow as tf
+import numpy as np
 
 import algorithm_lib as alib
-
 import plot_lib as plt2
 
 """"
@@ -133,18 +133,16 @@ def fetch_data():
     """
     :return: TBD
     """
-
-    bin, _, _, _, _ = alib.load_preprocess_contours("3c", 200)
-    plt2.plotting(bin, "3c")
-    bin, _, _, _, _ = alib.load_preprocess_contours("4a", 200)
-    plt2.plotting(bin, "3c")
-    bin, _, _, _, _ = alib.load_preprocess_contours("4b", 200)
-    plt2.plotting(bin, "3c")
-    bin, _, _, _, _ = alib.load_preprocess_contours("4c", 200)
-    plt2.plotting(bin, "3c")
+    # bin3c = binary image of type 3c
+    bin3c, _, _, _, _ = alib.load_preprocess_contours("3c", 200)
+    # bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 200)
+    #bin4b, _, _, _, _ = alib.load_preprocess_contours("4b", 200)
+    # bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 200)
+    arr = [bin3c]
+    plt2.Index(arr, ["3c", "4c"]).plot()
 
     # mix
-
+    pass
 
     feed_dict_train = {x: x_batch,
                        y_true: y_true_batch}

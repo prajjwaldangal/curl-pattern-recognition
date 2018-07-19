@@ -1,8 +1,9 @@
+import sys
+import time
 import cv2 as cv
 import numpy as np
 
 import matplotlib.pyplot as plt
-#import matplotlib.image as mpimg
 import plot_lib as plt2
 
 import random
@@ -22,9 +23,17 @@ hair_types = ["3c", "4a", "4b", "4c"]
 # manage cline argument
 # batch load in tf
 parser = argparse.ArgumentParser()
-parser.add_argument('-i','--input-dir', default='/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/' ,
+parser.add_argument('-i', '--input-dir', default='/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/',
                     help='Directory containing images (png format) to process')
 args = parser.parse_args()
+
+
+def dots(n):
+    i = n % 10
+    # dots on the terminal to show busy process
+    sys.stdout.write("." * i)
+    sys.stdout.flush()# flush: write to terminal without waiting for the buffer to fill up
+
 # load images into the program
 def load_preprocess_contours(hair_type, n, inv=True):
     """
@@ -43,11 +52,13 @@ def load_preprocess_contours(hair_type, n, inv=True):
     only_hair = []
     conts_ls = []
     canny = []
-
+    print("Processing images of type {}.......".format(hair_type))
     for i in range(n):
-        path = os.path.join(root, hair_types[j], str(i + 1)+'.png')
-        print(path)
+
+        path = os.path.join(root, hair_types[j], str(i + 1) + '.png')
+        # print(path)
         img = cv.imread(path)
+        dots(i)
         # convert to color intensity image to binary image
         gray_image = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         if inv:
@@ -58,12 +69,12 @@ def load_preprocess_contours(hair_type, n, inv=True):
         # cv.CHAIN_APPROX_SIMPLE requires only 4pts to represent a square contour vs
         #	cv.CHAIN_APPROX_NONE which would require thousands of points
         img2, contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE,
-                                                     cv.CHAIN_APPROX_SIMPLE)
+                                                    cv.CHAIN_APPROX_SIMPLE)
 
         # [1 0 -1]                          [1   1  1]
         # [1 0 -1]   for vertical edges,    [0   0  0]  should be for horizontal edges
         # [1 0 -1]                          [-1 -1 -1]
-        # gives you nice, pointful edges
+        # gives you nice, pointful edges, called L2 gradient
         edges = cv.Canny(thresh, threshold1=100, threshold2=255, L2gradient=True)
 
         originals.append(img)
@@ -71,14 +82,18 @@ def load_preprocess_contours(hair_type, n, inv=True):
         only_hair.append(thresh)
         conts_ls.append(contours)
         canny.append(edges)
+        # Carriage return ("\r") means to return to the beginning of the current line without advancing downward.
+        # The name comes from a printer's carriage
+        sys.stdout.write("\r")
     return only_hair, grays, originals, conts_ls, canny
+
 
 # returns image obtained after subtracting image from face_cascade coordinates
 def face_cascade():
     face_cascade = cv.CascadeClassifier('haarcascade_frontalface_default.xml')
 
     img = cv.imread('file1.jpg')
-    gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY) # intensity image
+    gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)  # intensity image
 
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
     # faces is returned as a four number array/tuple, must be
@@ -86,19 +101,20 @@ def face_cascade():
     #       rectangle and two values for height and width of the
     #       bounding rectangle.
     # It looks like: [[256 209 264 264]]
-    for (x,y,w,h) in faces:
-        cv.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
-    #print(faces)
-    x,y,w,h = faces[0]
+    for (x, y, w, h) in faces:
+        cv.rectangle(img, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    # print(faces)
+    x, y, w, h = faces[0]
     # set the face coordinates to o
-    for i in range(y-h, y+h+1):
-        for j in range(x-w, x+w+1):
+    for i in range(y - h, y + h + 1):
+        for j in range(x - w, x + w + 1):
             gray[i][j] = 0
-    #gray[x-w:x+w+1][y-h:y+h+1] = 0
-    #ret, thresh = cv.threshold(gray, 100, 255, cv.THRESH_BINARY_INV)
+    # gray[x-w:x+w+1][y-h:y+h+1] = 0
+    # ret, thresh = cv.threshold(gray, 100, 255, cv.THRESH_BINARY_INV)
 
-    #return gray - faces
+    # return gray - faces
     return gray
+
 
 # subtracted_img = face_cascade()
 # cv.imshow('substracted_img', subtracted_img)
@@ -144,6 +160,7 @@ def plotting(ls, fig):
 
     plt.show()
 
+
 #
 def blur(ls):
     """
@@ -157,6 +174,7 @@ def blur(ls):
         blurred.append(blur)
 
     return blurred
+
 
 #
 # Note: 3c is a cleaned directory
@@ -180,11 +198,6 @@ def plotting2(only_hair, path, n, orig=[], gray=[], conts_ls=[], canny=[]):
 
     return
 
-# testing plot_lib function (batch plotting)
-only_hair, grays, _, _, _ = load_preprocess_contours("3c", 100, inv=True)
-# plt2.plotting(grays, "3c")
-# plt2.plotting(only_hair, "3c")
-
 
 # run this function once to rename image files
 # into numeric filenames like, 3c/1.png, 3c/2.png, 4a/1.png, 4a/2.png ...
@@ -194,24 +207,12 @@ def batch_rename(hair_dir, extra=""):
     path = os.path.join(args.input_dir, hair_dir)
     filenames = os.listdir(path)
     for idx, filename in enumerate(filenames):
-        os.rename(os.path.join(path, filename), os.path.join(path, extra+str(idx+1)+".png"))
+        os.rename(os.path.join(path, filename), os.path.join(path, extra + str(idx + 1) + ".png"))
 
-# batch_rename("3c")
-
-"""
-######### Model histogram and meanshift  #############
-s = [[1,2,3],[1,2,3],[1,2,3]]
-calcHist(s) returns  [3,3,3]
-calcBackProject(s, hist, 2) returns  [[6,6,6],[6,6,6],[6,6,6]]
-hist = cv2.calcHist([s], [0], None, [3], [1,4])
-dst = cv2.calcBackProject([s], [0], hist, [1,4], 2)
-
-meanshift -->  calcBackProject  -->  calcHistogram
-scale
-"""
 
 def resize(out_size, hair_type):
     pass
+
 
 def mean_shift(hair_type, n):
     """
@@ -222,27 +223,41 @@ def mean_shift(hair_type, n):
     """
     root = args.input_dir
     imgs = []
-    r,h,c,w = 250,90,400,125  # simply hardcoded the values
-    track_window = (c,r,w,h)
+    r, h, c, w = 250, 90, 400, 125  # simply hardcoded the values
+    track_window = (c, r, w, h)
     # Setup the termination criteria, either 10 iteration or move by atleast 1 pt
-    term_crit = ( cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1 )
+    term_crit = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1)
     for i in range(n):
-        img = cv.imread(os.path.join(root, hair_type, str(n)+".png"))
+        img = cv.imread(os.path.join(root, hair_type, str(n) + ".png"))
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
         # applyColorMap applies a GNU Octave/MATLAB equivalent colormap on a given image
         # cv.applyColorMap(src, colormap [, dst]) -> dst
         ret, thresh = cv.threshold(gray, 100, 255, cv.THRESH_BINARY_INV)
+
         # apply cv.calcHist and cv.calcBackProject on thresh first of all
-        hist = cv.calcHist([gray], [0], None, [255-100], [100, 255])
+        """
+            ######### Model histogram and meanshift  #############
+            s = [[1,2,3],[1,2,3],[1,2,3]]
+            calcHist(s) returns  [3,3,3]
+            calcBackProject(s, hist, 2) returns  [[6,6,6],[6,6,6],[6,6,6]]
+            hist = cv2.calcHist([s], [0], None, [3], [1,4])
+            dst = cv2.calcBackProject([s], [0], hist, [1,4], 2)
+        """
+        hist = cv.calcHist([gray], [0], None, [255 - 100], [100, 255])
         dst = cv.calcBackProject([gray], [0], hist, [100, 255], 2)
         ret, track_window = cv.meanShift(dst, track_window, term_crit)
-        x,y,w,h = track_window
-        img2 = cv.rectangle(img, (x,y), (x+w,y+h), 255,2)
+        x, y, w, h = track_window
+        img2 = cv.rectangle(img, (x, y), (x + w, y + h), 255, 2)
         imgs.append(img2)
         # cv.imshow('img2',img2)
         # cv.waitKey(0)
         # cv.destroyAllWindows()
         return imgs
+
+
+if __name__ == '__main__':
+    batch_rename("4c")
+    pass
 
 # imgs = mean_shift("/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/4c", 50)
 # print("Shape: {} x {}".format(len(imgs), len(imgs[0])))
@@ -263,7 +278,5 @@ def mean_shift(hair_type, n):
 Histograms are collected counts of data organized into a set of predefined bins
 intensity values (or ranges of intensity values)  on x axis, frequency on y axis for a given (a x b) region of img
 
-Monday meeting issues to raise: add as collaborators on github, 
-                                somebody needs to look into k-means clustering for segmentation
-                                
-"""
+Monday meeting issues to raise: add as collaborators on github, somebody needs to look into k-means clustering for 
+segmentation."""
