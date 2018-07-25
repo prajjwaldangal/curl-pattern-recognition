@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import random
 
 import algorithm_lib as alib
 import plot_lib as plt2
@@ -30,6 +31,8 @@ initialized some of the architecture specifications
 
     
 """
+
+BATCH = os.environ.get('BATCH', 20)
 
 # Convolutional Layer 1.
 filter_size1 = 3 
@@ -130,21 +133,33 @@ session = tf.Session()
 # session.run(tf.initialize_all_variables())  --> will be removed after 2017-03-02
 # try help(tf.placeholder) for code with feeding
 
-def fetch_data():
+def mix(ls):
+    # arr = np.
+    # return arr
+    pass
+
+def fetch_data(unsegmented_thus_more=True):
     """
     :return: TBD
     """
-    # bin3c = binary image of type 3c
-    bin3c, _, _, _, _ = alib.load_preprocess_contours("3c", 200)
-    # bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 200)
-    #bin4b, _, _, _, _ = alib.load_preprocess_contours("4b", 200)
-    bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 200)
-    arr = [bin3c, bin4c]
-    # plt2.Index(arr, ["3c", "4c"]).plot_new_figure()
-    plt2.Index(arr, ["3c", "4c"]).plot()
+    # TO-DO: (1) Segment 3c (2) Put into folders. Same for 4b
+    # bin4a = binary image of type 4a
+    # bin, grays, originals, conts_ls, canny = alib.load_preprocess_contours("4a", 50, (50, 50), ...
+    if unsegmented_thus_more:
+        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 50, (50, 50), segmented=False)
+        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 50, (50, 50), segmented=False)
+    else:
+        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 10, (50, 50))
+        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 10, (50, 50))
+    arr = [bin4a, bin4c]
 
-    # mix
-    pass
+    # Manager is a design smell
+    # name classes in terms of the functional requirement it fulfills
+    # Mediator pattern: Objects no longer communicate directly with each other, but instead communicate through the
+    #                                                                                           mediator.
+    # https://softwareengineering.stackexchange.com/questions/350142/how-can-i-manage-the-code-base-of-significantly-complex-software
+
+
 
     feed_dict_train = {x: x_batch,
                        y_true: y_true_batch}
@@ -229,4 +244,6 @@ def optimize(num_iterations):
 # https://www.tensorflow.org/tutorials/deep_cnn
 # vs
 # https://github.com/rdcolema/tensorflow-image-classification/blob/master/cnn.ipynb
+# vs
+# http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/#more-452
 

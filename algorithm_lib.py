@@ -1,5 +1,4 @@
 import sys
-import time
 import cv2 as cv
 import numpy as np
 
@@ -23,7 +22,7 @@ hair_types = ["3c", "4a", "4b", "4c"]
 # manage cline argument
 # batch load in tf
 parser = argparse.ArgumentParser()
-parser.add_argument('-i', '--input-dir', default='/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/',
+parser.add_argument('-i', '--input-dir', default='/Users/prajjwaldangal/Documents/cs/summer2018/algo/data/',
                     help='Directory containing images (png format) to process')
 args = parser.parse_args()
 
@@ -35,16 +34,20 @@ def dots(n):
     sys.stdout.flush()# flush: write to terminal without waiting for the buffer to fill up
 
 # load images into the program
-def load_preprocess_contours(hair_type, n, inv=True):
+def load_preprocess_contours(hair_type, n, resize_dim=None, extra="train", segmented=True, inv=True):
     """
     args:
 		hair_type : the hair type
 		n : number of image files
+		extra: 'train' or 'test'
+		segmented: where to look for files (segmented or unsegmented dir inside hair_type dir)
 		inv : whether or not to invert the binary image, for our algorithm we want it to be True
 
-	returns: list of binary images, original images, grays as well as
+	:rtype: list of binary images, original images, grays as well as
 			contour lists and canny edges
 	"""
+
+    # TO-DO: add slider for threshold value
     root = args.input_dir
     j = hair_types.index(hair_type.strip().lower())
     originals = []
@@ -54,17 +57,25 @@ def load_preprocess_contours(hair_type, n, inv=True):
     canny = []
     print("Processing images of type {}.......".format(hair_type))
     for i in range(n):
-
-        path = os.path.join(root, hair_types[j], str(i + 1) + '.png')
-        # print(path)
+        if segmented:
+            path = os.path.join(root, extra, hair_types[j], "segmented", str(i + 1) + '.png')
+        else:
+            path = os.path.join(root, extra, hair_types[j], "unsegmented", str(i + 1) + '.png')
+        # print for output
+        print("Loading {}".format(path.split("segmented")[1][1:]))
+        print(path)
         img = cv.imread(path)
+        if resize_dim:
+            img = cv.resize(img, resize_dim)
+        # img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
         dots(i)
         # convert to color intensity image to binary image
         gray_image = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        # gray_image = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
         if inv:
-            ret, thresh = cv.threshold(gray_image, 100, 255, cv.THRESH_BINARY_INV)
+            ret, thresh = cv.threshold(gray_image, 0, 255, cv.THRESH_BINARY_INV)
         else:
-            ret, thresh = cv.threshold(gray_image, 100, 255, cv.THRESH_BINARY)
+            ret, thresh = cv.threshold(gray_image, 0, 255, cv.THRESH_BINARY)
         # conts_ls is a list of contoured images
         # cv.CHAIN_APPROX_SIMPLE requires only 4pts to represent a square contour vs
         #	cv.CHAIN_APPROX_NONE which would require thousands of points
@@ -123,42 +134,28 @@ def face_cascade():
 # cv.waitKey(0)
 # cv.destroyAllWindows()
 
-# plots from a list consisting of four images
-# TO-DO: make dim general; plt may not support it
-def plotting(ls, fig):
+# plots from a list consisting
+def plotting(ls, fig_num, dim):
     """
-    Plots four images i.e. ls should have four members
     :param ls: list of images
-    :param fig: figure number
+    :param fig_num: figure number
+    :param dim: 2-ple for no. of rows and cols in the plot
     :return: NA
     """
-    plt.figure(fig)
+    cap = dim[0] * dim[1]
+    if len(ls) > cap:
+        print("Last {} discarded".format(abs(cap-len(ls))))
+    elif len(ls) < cap:
+        print("Adjusting axes")
+        dots(4)
+        cap = len(ls)
 
-    plt.subplot()
-    plt.subplot(221)
-    plt.imshow(ls[0])
-
-    plt.subplot(222)
-    plt.imshow(ls[1])
-
-    plt.subplot(223)
-    plt.imshow(ls[2])
-
-    plt.subplot(224)
-    plt.imshow(ls[3])
-    """
-    plt.subplot(425)
-    plt.imshow(ls[4])
-
-    plt.subplot(426)
-    plt.imshow(ls[5])
-
-    plt.subplot(427)
-    plt.imshow(ls[6])
-
-    plt.subplot(428)
-    plt.imshow(ls[7])
-    """
+    plt.figure(fig_num)
+    # len(ls) = 18
+    # cap = 4*4 = 16
+    for i in range(cap):
+        plt.subplot(3, int(cap/3) + 1, i+1)
+        plt.imshow(ls[i])
 
     plt.show()
 
@@ -184,32 +181,48 @@ def blur(ls):
 
 # Specifically, compare original, contours and canny images.
 # TO-DO: add hair_type argument and changes
-# Spaghetti code
-def plotting2(only_hair, path, n, orig=[], gray=[], conts_ls=[], canny=[]):
-    i = 0
+# Special case of plotting function
+def plotting2(hair_type, n, extra="train", segmented=True):
+    if segmented:
+        only_hair, grays, originals, conts_ls, canny = load_preprocess_contours(hair_type.strip().lower(), n)
+    else:
+        only_hair, grays, originals, conts_ls, canny = load_preprocess_contours(hair_type.strip().lower(), n,
+                                                                                segmented=False)
     conts_imgs = []
     for i in range(n):
         # myFile = "{Path}{dir_ini}{ind}{form}".format(Path=path, dir_ini="figures/cont_",
         #                                              ind=i + 1, form='.png')
         contrs = cv.drawContours(only_hair[i], conts_ls[i], -1, (0, 255, 0), 3)
         conts_imgs.append(contrs)
-    plotting(only_hair, 1)
+    plotting(only_hair, 1, (5,5))
     # try plotting(conts_ls, ..)
-    plotting(conts_imgs, 2)
-    plotting(canny, 3)
+    plotting(conts_imgs, 2, (5,5))
+    plotting(canny, 3, (5,5))
 
     return
+
+
 
 
 # run this function once to rename image files
 # into numeric filenames like, 3c/1.png, 3c/2.png, 4a/1.png, 4a/2.png ...
 # already ran on my machine, so I don't have to worry about it
-def batch_rename(hair_dir, extra=""):
+def batch_rename(hair_dir, extra="train", segmented=True):
+    """
+
+    :param hair_dir: hair type (3c, 4a ...)
+    :param extra: train or test
+    :param segmented: rename segmented dir or unsegmented dir
+    :return: NA
+    """
     # rename image files into uniform numeric with exts
-    path = os.path.join(args.input_dir, hair_dir)
+    if segmented:
+        path = os.path.join(args.input_dir, extra, hair_dir, "segmented")
+    else:
+        path = os.path.join(args.input_dir, extra, hair_dir, "unsegmented")
     filenames = os.listdir(path)
     for idx, filename in enumerate(filenames):
-        os.rename(os.path.join(path, filename), os.path.join(path, extra + str(idx + 1) + ".png"))
+        os.rename(os.path.join(path, filename), os.path.join(path, str(idx + 1) + ".png"))
 
 
 def resize(out_size, hair_type):
@@ -229,12 +242,29 @@ def mean_shift(hair_type, n):
     track_window = (c, r, w, h)
     # Setup the termination criteria, either 10 iteration or move by atleast 1 pt
     term_crit = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1)
+    _, _, imgs, _, _ = load_preprocess_contours(hair_type, n, (50,50), segmented=False)
     for i in range(n):
-        img = cv.imread(os.path.join(root, hair_type, str(n) + ".png"))
+        img = imgs[i]
+        roi = img[r:r+h, c:c+w]
+        hsv_roi =  cv.cvtColor(roi, cv.COLOR_BGR2HSV)
+        # mask = cv.inRange(hsv_roi, np.array((0., 60.,32.)), np.array((180.,255.,255.)))
+        roi_hist = cv.calcHist([hsv_roi],[0],None,[180],[0,180])
+        cv.normalize(roi_hist,roi_hist,0,255,cv.NORM_MINMAX)
+
         gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
+        hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
+        dst = cv.calcBackProject([hsv],[0],roi_hist,[0,180],1)
+        ret, track_window = cv.meanShift(dst, track_window, term_crit)
+        # Draw it on image
+        x,y,w,h = track_window
+        img2 = cv.rectangle(img, (x,y), (x+w,y+h), 255,2)
+        cv.imshow('img2',img2)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
+
         # applyColorMap applies a GNU Octave/MATLAB equivalent colormap on a given image
         # cv.applyColorMap(src, colormap [, dst]) -> dst
-        ret, thresh = cv.threshold(gray, 100, 255, cv.THRESH_BINARY_INV)
+        # ret, thresh = cv.threshold(gray, 100, 255, cv.THRESH_BINARY_INV)
 
         # apply cv.calcHist and cv.calcBackProject on thresh first of all
         """
@@ -245,21 +275,18 @@ def mean_shift(hair_type, n):
             hist = cv2.calcHist([s], [0], None, [3], [1,4])
             dst = cv2.calcBackProject([s], [0], hist, [1,4], 2)
         """
-        hist = cv.calcHist([gray], [0], None, [255 - 100], [100, 255])
-        dst = cv.calcBackProject([gray], [0], hist, [100, 255], 2)
-        ret, track_window = cv.meanShift(dst, track_window, term_crit)
-        x, y, w, h = track_window
-        img2 = cv.rectangle(img, (x, y), (x + w, y + h), 255, 2)
-        imgs.append(img2)
-        # cv.imshow('img2',img2)
-        # cv.waitKey(0)
-        # cv.destroyAllWindows()
-        return imgs
+
+    return imgs
 
 
-# if __name__ == '__main__':
-#     batch_rename("4c")
-#     pass
+# imgs = mean_shift("3c", 100)
+# print("Length of imgs is: {}".format(len(imgs)))
+# plt2.Index([imgs], ["3c"]).plot_batch()
+
+if __name__ == '__main__':
+    # batch_rename("4c", extra="train", segmented=False)
+    mean_shift("4c", 10)
+
 
 # imgs = mean_shift("/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/4c", 50)
 # print("Shape: {} x {}".format(len(imgs), len(imgs[0])))
