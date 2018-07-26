@@ -131,10 +131,10 @@ session = tf.Session()
 # session.run(tf.initialize_all_variables())  --> will be removed after 2017-03-02
 # try help(tf.placeholder) for code with feeding
 
-def mix(ls):
+def mix(ls, hair_types):
     """
     :param ls: list of different hair type images
-    :return: train and validation image sets
+    :return: train and validation image sets along with their corresponding labels
     """
     if ls == [] or ls[0] == [] or ls[1] == []:
         return
@@ -142,25 +142,31 @@ def mix(ls):
     n_imgs = len(ls[0]) # number of images in each hair_type array
     img_height = len(ls[0][0])
     img_width = len(ls[0][0][0])
-
     # the following code turns a x b x c x d arr into l x c x d where l = a x b, mixes them and separates
     # into train and validation sets
-    train_arr = []
-    valid_arr = []
+    train_x = []
+    valid_x = []
+    train_y = []
+    valid_y = []
     # arr = np.zeros((n_hair_types * n_imgs, img_height, img_width))
-    for hair_matrices in ls:
+    for i, hair_matrices in enumerate(ls):
         l = int((1-validation_size)*n_imgs)+1
+        # label=hair_types[i]
         for idx, img in enumerate(hair_matrices[:l]):
-            train_arr.append(img)
+            train_x.append(img)
+            train_y.append(i)
         for idx, img in enumerate(hair_matrices[l:]):
-            valid_arr.append(img)
+            valid_x.append(img)
+            valid_y.append(i)
     # mix
     print("Shuffling...")
     alib.dots(5)
-    t = len(train_arr)
-    v = len(valid_arr)
-    train_rtrn = np.zeros((t, img_height, img_width))
-    valid_rtrn = np.zeros((v, img_height, img_width))
+    t = len(train_x)
+    v = len(valid_x)
+    train_rtrn_x = np.zeros((t, img_height, img_width))
+    train_rtrn_y = np.zeros((t))
+    valid_rtrn_x = np.zeros((v, img_height, img_width))
+    valid_rtrn_y = np.zeros((v))
     train_seen = {}
     valid_seen = {}
     train_cnt = 0
@@ -170,23 +176,36 @@ def mix(ls):
         train_rand_int = random.randint(0, t-1)
         valid_rand_int = random.randint(0, v-1)
         if not train_rand_int in train_seen:
-            train_rtrn = np.insert(train_rtrn, train_rand_int, train_arr[train_rand_int], 0)
-            train_rtrn = np.delete(train_rtrn, train_rand_int+1, 0)
+            # insert delete x
+            train_rtrn_x = np.insert(train_rtrn_x, train_rand_int, train_x[train_rand_int], 0)
+            train_rtrn_x = np.delete(train_rtrn_x, train_rand_int+1, 0)
+            # insert delete y
+            train_rtrn_y = np.insert(train_rtrn_y, train_rand_int, train_y[train_rand_int], 0)
+            train_rtrn_y = np.delete(train_rtrn_y, train_rand_int+1, 0)
             train_cnt += 1
 
         if not valid_rand_int in valid_seen:
-            valid_rtrn = np.insert(valid_rtrn, valid_rand_int, valid_arr[valid_rand_int], 0)
-            valid_rtrn = np.delete(valid_rtrn, valid_rand_int+1, 0)
+            # same as above: insert delete x
+            valid_rtrn_x = np.insert(valid_rtrn_x, valid_rand_int, valid_x[valid_rand_int], 0)
+            valid_rtrn_x = np.delete(valid_rtrn_x, valid_rand_int+1, 0)
+            # insert delete y
+            valid_rtrn_y = np.insert(valid_rtrn_y, valid_rand_int, valid_y[valid_rand_int], 0)
+            valid_rtrn_y = np.delete(valid_rtrn_y, valid_rand_int+1, 0)
             valid_cnt += 1
 
         done = train_cnt < t and valid_cnt < v
     # compare ls and train and valid rtrn
-    def assure(ls, arr1, arr2):
-        print("Length of ls: {}\nLength of train: {}, of valid: {}".format(len(ls), len(arr1), len(arr2)))
+    def assure(ls, train_x, train_y, valid_x, valid_y):
+        print("Printing info")
+        alib.dots(5)
+        print("Shape of ls: {}\nShape of train_x: {}\nShape of train_y: {}\nShape of valid_x: {}\n"
+              "Shape of valid_y: {}".format((len(ls), len(ls[0]), len(ls[0][0])), train_x.shape, train_y.shape, valid_x.shape,
+                                            valid_y.shape))
+
         # can put more tests for assurance progressively
 
-    assure(ls[0]+ls[1], train_rtrn, valid_rtrn)
-    return train_rtrn, valid_rtrn
+    assure(ls[0]+ls[1], train_rtrn_x, train_rtrn_y, valid_rtrn_x, valid_rtrn_y)
+    return [train_rtrn_x, train_rtrn_y], [valid_rtrn_x, valid_rtrn_y]
 
 
 def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
@@ -208,6 +227,7 @@ def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
         bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", n, dim)
     # dim(bin4a) = 10x30x30
 
+    # NOTE: always send in ascending order
     arr = [bin4a, bin4c]
     # learning rate check after each epoch
     # backpropagation for each row
@@ -221,7 +241,10 @@ def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
 
     # use 1 out of 10 as validation, make general
 
-    x_train, x_valid = mix(arr)
+    train, valid = mix(arr, ["4a", "4c"]) # note hair type is always [3c, 4a, 4b, 4c], [0, 1, 2, 3] order
+    x_batch, y_true_batch = train
+    x_valid_batch, y_valid_batch = valid
+
     
     # x_batch = arr[0][:train_per*len(arr)]
 
@@ -230,6 +253,8 @@ def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
 
     feed_dict_validate = {x: x_valid_batch,
                           y_true: y_valid_batch}
+
+
 
 # Counter for total number of iterations performed so far.
 total_iterations = 0
