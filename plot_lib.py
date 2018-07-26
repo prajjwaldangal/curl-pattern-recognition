@@ -63,8 +63,8 @@ def fetch_data(unsegmented_thus_more=True):
     index.plot_batch()
 
 
-if __name__ == '__main__':
-    fetch_data(False)
+# if __name__ == '__main__':
+    # fetch_data(False)
 
 """
 def _plot_batch(self, hair_type="3c"):

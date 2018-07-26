@@ -32,8 +32,6 @@ initialized some of the architecture specifications
     
 """
 
-BATCH = os.environ.get('BATCH', 20)
-
 # Convolutional Layer 1.
 filter_size1 = 3 
 num_filters1 = 32
@@ -47,14 +45,14 @@ filter_size3 = 2
 num_filters3 = 8
 
 # Fully-connected layer.
-fc_size = 128             # Number of neurons in fully-connected layer.
+fc_size = 32             # Number of neurons in fully-connected layer.
 
 # Number of color channels for the images: 1 channel for gray-scale, 3 for RGB.
 num_channels = 1
 
 # image dimensions (only squares for now)
 #img_size = 128
-img_size = 30
+img_size = 50
 
 # Size of image when flattened to a single dimension
 img_size_flat = img_size * img_size * num_channels
@@ -70,7 +68,7 @@ num_classes = len(classes)
 batch_size = 32
 
 # validation split
-validation_size = .16
+validation_size = .14
 
 # how long to wait after validation loss stops improving before terminating training
 early_stopping = None  # use None if you don't want to implement early stoping
@@ -134,24 +132,86 @@ session = tf.Session()
 # try help(tf.placeholder) for code with feeding
 
 def mix(ls):
-    # arr = np.
-    # return arr
-    pass
-
-def fetch_data(unsegmented_thus_more=True):
     """
-    :return: TBD
+    :param ls: list of different hair type images
+    :return: train and validation image sets
+    """
+    if ls == [] or ls[0] == [] or ls[1] == []:
+        return
+    n_hair_types = len(ls)
+    n_imgs = len(ls[0]) # number of images in each hair_type array
+    img_height = len(ls[0][0])
+    img_width = len(ls[0][0][0])
+
+    # the following code turns a x b x c x d arr into l x c x d where l = a x b, mixes them and separates
+    # into train and validation sets
+    train_arr = []
+    valid_arr = []
+    # arr = np.zeros((n_hair_types * n_imgs, img_height, img_width))
+    for hair_matrices in ls:
+        l = int((1-validation_size)*n_imgs)+1
+        for idx, img in enumerate(hair_matrices[:l]):
+            train_arr.append(img)
+        for idx, img in enumerate(hair_matrices[l:]):
+            valid_arr.append(img)
+    # mix
+    print("Shuffling...")
+    alib.dots(5)
+    t = len(train_arr)
+    v = len(valid_arr)
+    train_rtrn = np.zeros((t, img_height, img_width))
+    valid_rtrn = np.zeros((v, img_height, img_width))
+    train_seen = {}
+    valid_seen = {}
+    train_cnt = 0
+    valid_cnt = 0
+    done = False
+    while not done:
+        train_rand_int = random.randint(0, t-1)
+        valid_rand_int = random.randint(0, v-1)
+        if not train_rand_int in train_seen:
+            train_rtrn = np.insert(train_rtrn, train_rand_int, train_arr[train_rand_int], 0)
+            train_rtrn = np.delete(train_rtrn, train_rand_int+1, 0)
+            train_cnt += 1
+
+        if not valid_rand_int in valid_seen:
+            valid_rtrn = np.insert(valid_rtrn, valid_rand_int, valid_arr[valid_rand_int], 0)
+            valid_rtrn = np.delete(valid_rtrn, valid_rand_int+1, 0)
+            valid_cnt += 1
+
+        done = train_cnt < t and valid_cnt < v
+    # compare ls and train and valid rtrn
+    def assure(ls, arr1, arr2):
+        print("Length of ls: {}\nLength of train: {}, of valid: {}".format(len(ls), len(arr1), len(arr2)))
+        # can put more tests for assurance progressively
+
+    assure(ls[0]+ls[1], train_rtrn, valid_rtrn)
+    return train_rtrn, valid_rtrn
+
+
+def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
+    """
+
+    :param segmented_thus_less: if true, fetch segmented else fetch unsegmented
+    :param n: number of images to fetch in total
+    :param dim: load images with dimension dim
+    :return:
     """
     # TO-DO: (1) Segment 3c (2) Put into folders. Same for 4b
     # bin4a = binary image of type 4a
     # bin, grays, originals, conts_ls, canny = alib.load_preprocess_contours("4a", 50, (50, 50), ...
-    if unsegmented_thus_more:
-        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 50, (50, 50), segmented=False)
-        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 50, (50, 50), segmented=False)
+    if not segmented_thus_less:
+        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", n, dim, segmented=False)
+        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", n, dim, segmented=False)
     else:
-        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", 10, (50, 50))
-        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", 10, (50, 50))
+        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", n, dim)
+        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", n, dim)
+    # dim(bin4a) = 10x30x30
+
     arr = [bin4a, bin4c]
+    # learning rate check after each epoch
+    # backpropagation for each row
+
 
     # Manager is a design smell
     # name classes in terms of the functional requirement it fulfills
@@ -159,15 +219,17 @@ def fetch_data(unsegmented_thus_more=True):
     #                                                                                           mediator.
     # https://softwareengineering.stackexchange.com/questions/350142/how-can-i-manage-the-code-base-of-significantly-complex-software
 
+    # use 1 out of 10 as validation, make general
 
+    x_train, x_valid = mix(arr)
+    
+    # x_batch = arr[0][:train_per*len(arr)]
 
     feed_dict_train = {x: x_batch,
                        y_true: y_true_batch}
 
     feed_dict_validate = {x: x_valid_batch,
                           y_true: y_valid_batch}
-
-fetch_data()
 
 # Counter for total number of iterations performed so far.
 total_iterations = 0
@@ -246,4 +308,8 @@ def optimize(num_iterations):
 # https://github.com/rdcolema/tensorflow-image-classification/blob/master/cnn.ipynb
 # vs
 # http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/#more-452
+# vs
+# https://datascience.stackexchange.com/questions/24511/why-should-the-data-be-shuffled-for-machine-learning-tasks
 
+if __name__ == '__main__':
+    fetch_data(False)

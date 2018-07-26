@@ -24,14 +24,22 @@ hair_types = ["3c", "4a", "4b", "4c"]
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--input-dir', default='/Users/prajjwaldangal/Documents/cs/summer2018/algo/data/',
                     help='Directory containing images (png format) to process')
+# parser.add_argument()
 args = parser.parse_args()
 
+
+class Input(object):
+
+    def __init__(self, path=args.input_dir):
+        self._path = path
+        # self._n =
 
 def dots(n):
     i = n % 10
     # dots on the terminal to show busy process
     sys.stdout.write("." * i)
     sys.stdout.flush()# flush: write to terminal without waiting for the buffer to fill up
+
 
 # load images into the program
 def load_preprocess_contours(hair_type, n, resize_dim=None, extra="train", segmented=True, inv=True):
@@ -175,10 +183,6 @@ def blur(ls):
     return blurred
 
 
-#
-# Note: 3c is a cleaned directory
-#
-
 # Specifically, compare original, contours and canny images.
 # TO-DO: add hair_type argument and changes
 # Special case of plotting function
@@ -200,8 +204,6 @@ def plotting2(hair_type, n, extra="train", segmented=True):
     plotting(canny, 3, (5,5))
 
     return
-
-
 
 
 # run this function once to rename image files
@@ -283,9 +285,9 @@ def mean_shift(hair_type, n):
 # print("Length of imgs is: {}".format(len(imgs)))
 # plt2.Index([imgs], ["3c"]).plot_batch()
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # batch_rename("4c", extra="train", segmented=False)
-    mean_shift("4c", 10)
+    # mean_shift("4c", 10)
 
 
 # imgs = mean_shift("/Users/prajjwaldangal/Documents/cs/summer2018/algo/downloads/4c", 50)
