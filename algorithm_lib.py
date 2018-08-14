@@ -28,10 +28,11 @@ parser.add_argument('-i', '--input-dir', default='/Users/prajjwaldangal/Document
 args = parser.parse_args()
 
 
-class Input(object):
+class InputSpec(object):
 
-    def __init__(self, path=args.input_dir):
+    def __init__(self, path=args.input_dir, BATCH__SIZE=10):
         self._path = path
+        self._BATCH_SIZE = BATCH__SIZE
         # self._n =
 
 def dots(n):
@@ -42,7 +43,8 @@ def dots(n):
 
 
 # load images into the program
-def load_preprocess_contours(hair_type, n, resize_dim=None, extra="train", segmented=True, inv=True):
+def load_preprocess_contours(hair_type, n, resize_dim=None, extra="train", segmented=True, inv=True,
+                             get_conts=False, get_canny=False):
     """
     args:
 		hair_type : the hair type
@@ -87,20 +89,22 @@ def load_preprocess_contours(hair_type, n, resize_dim=None, extra="train", segme
         # conts_ls is a list of contoured images
         # cv.CHAIN_APPROX_SIMPLE requires only 4pts to represent a square contour vs
         #	cv.CHAIN_APPROX_NONE which would require thousands of points
-        img2, contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE,
+        if get_conts:
+            img2, contours, hierarchy = cv.findContours(thresh, cv.RETR_TREE,
                                                     cv.CHAIN_APPROX_SIMPLE)
+            conts_ls.append(contours)
 
         # [1 0 -1]                          [1   1  1]
         # [1 0 -1]   for vertical edges,    [0   0  0]  should be for horizontal edges
         # [1 0 -1]                          [-1 -1 -1]
         # gives you nice, pointful edges, called L2 gradient
-        edges = cv.Canny(thresh, threshold1=100, threshold2=255, L2gradient=True)
+        if get_canny:
+            edges = cv.Canny(thresh, threshold1=100, threshold2=255, L2gradient=True)
+            canny.append(edges)
 
         originals.append(img)
         grays.append(gray_image)
         only_hair.append(thresh)
-        conts_ls.append(contours)
-        canny.append(edges)
         # Carriage return ("\r") means to return to the beginning of the current line without advancing downward.
         # The name comes from a printer's carriage
         sys.stdout.write("\r")
@@ -304,7 +308,7 @@ def mean_shift(hair_type, n):
 5. Variation of shades is present in the images between different classes. Also curls on the end of hair bundle could
     help differentiate between classes.
 
-# flixify start from 30 and onwards
+# flixify start from 30, 32, 
 ###################### Mean shift segmentation method #####################
 Histograms are collected counts of data organized into a set of predefined bins
 intensity values (or ranges of intensity values)  on x axis, frequency on y axis for a given (a x b) region of img

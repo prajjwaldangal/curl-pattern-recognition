@@ -52,7 +52,7 @@ num_channels = 1
 
 # image dimensions (only squares for now)
 #img_size = 128
-img_size = 50
+img_size = 30
 
 # Size of image when flattened to a single dimension
 img_size_flat = img_size * img_size * num_channels
@@ -61,11 +61,12 @@ img_size_flat = img_size * img_size * num_channels
 img_shape = (img_size, img_size)
 
 # class info
-classes = ['3c', '4a', '4b', '4c']
+# classes = ['3c', '4a', '4b', '4c']
+classes = ['4a']
 num_classes = len(classes)
 
 # batch size
-batch_size = 32
+BATCH_SIZE = 8
 
 # validation split
 validation_size = .14
@@ -122,18 +123,70 @@ rank_three_tensor_np = np.ones((3,4,5))
 r_two_tf = tf.reshape(rank_three_tensor, [10,-1])
 r_two_np = rank_three_tensor_np.reshape((10,6))
 
+def new_conv_layer(input,              # The previous layer.
+                   num_input_channels, # Num. channels in prev. layer.
+                   filter_size,        # Width and height of each filter.
+                   num_filters,        # Number of filters.
+                   use_pooling=True):  # Use 2x2 max-pooling.
 
-# concerned with only the input at this point
-x = tf.placeholder(tf.float32, (30, 30), name = 'x')
-# tf.train.GradientDescentOptimizer vs tf.train.AdamOptimizer for mnist vs cnn respectively.
-session = tf.Session()
+    # Shape of the filter-weights for the convolution.
+    # This format is determined by the TensorFlow API.
+    shape = [filter_size, filter_size, num_input_channels, num_filters]
+
+    # Create new weights aka. filters with the given shape.
+    weights = new_weights(shape=shape)
+
+    # Create new biases, one for each filter.
+    biases = new_biases(length=num_filters)
+
+    # Create the TensorFlow operation for convolution.
+    # Note the strides are set to 1 in all dimensions.
+    # The first and last stride must always be 1,
+    # because the first is for the image-number and
+    # the last is for the input-channel.
+    # But e.g. strides=[1, 2, 2, 1] would mean that the filter
+    # is moved 2 pixels across the x- and y-axis of the image.
+    # The padding is set to 'SAME' which means the input image
+    # is padded with zeroes so the size of the output is the same.
+    layer = tf.nn.conv2d(input=input,
+                         filter=weights,
+                         strides=[1, 1, 1, 1],
+                         padding='SAME')
+
+    # Add the biases to the results of the convolution.
+    # A bias-value is added to each filter-channel.
+    layer += biases
+
+    # Use pooling to down-sample the image resolution?
+    if use_pooling:
+        # This is 2x2 max-pooling, which means that we
+        # consider 2x2 windows and select the largest value
+        # in each window. Then we move 2 pixels to the next window.
+        layer = tf.nn.max_pool(value=layer,
+                               ksize=[1, 2, 2, 1],
+                               strides=[1, 2, 2, 1],
+                               padding='SAME')
+
+    # Rectified Linear Unit (ReLU).
+    # It calculates max(x, 0) for each input pixel x.
+    # This adds some non-linearity to the formula and allows us
+    # to learn more complicated functions.
+    layer = tf.nn.relu(layer)
+
+    # Note that ReLU is normally executed before the pooling,
+    # but since relu(max_pool(x)) == max_pool(relu(x)) we can
+    # save 75% of the relu-operations by max-pooling first.
+
+    # We return both the resulting layer and the filter-weights
+    # because we will plot the weights later.
+    return layer, weights
 
 # session.run(tf.initialize_all_variables())  --> will be removed after 2017-03-02
 # try help(tf.placeholder) for code with feeding
 
-def mix(ls, hair_types):
+def random_mix(ls, hair_types):
     """
-    :param ls: list of different hair type images
+    :param ls: list of different hair type images, num_classes x num_examples_of_each_class x img_height x img_width
     :return: train and validation image sets along with their corresponding labels
     """
     if ls == [] or ls[0] == [] or ls[1] == []:
@@ -196,35 +249,44 @@ def mix(ls, hair_types):
         done = train_cnt < t and valid_cnt < v
     # compare ls and train and valid rtrn
     def assure(ls, train_x, train_y, valid_x, valid_y):
-        print("Printing info")
+        print("\n")
+        print("Printing assurance info")
         alib.dots(5)
+        print("\n")
         print("Shape of ls: {}\nShape of train_x: {}\nShape of train_y: {}\nShape of valid_x: {}\n"
               "Shape of valid_y: {}".format((len(ls), len(ls[0]), len(ls[0][0])), train_x.shape, train_y.shape, valid_x.shape,
                                             valid_y.shape))
 
-        # can put more tests for assurance progressively
-
+    # can put more tests for assurance progressively
     assure(ls[0]+ls[1], train_rtrn_x, train_rtrn_y, valid_rtrn_x, valid_rtrn_y)
     return [train_rtrn_x, train_rtrn_y], [valid_rtrn_x, valid_rtrn_y]
 
+# concerned with only the input at this point
+# dim = len_hair_type * BATCH_SIZE
+X = tf.placeholder(tf.float32, (num_classes * BATCH_SIZE, 30, 30), name = 'X')
+Y = tf.placeholder(tf.int8, (num_classes * BATCH_SIZE), name='Y')
+# tf.train.GradientDescentOptimizer vs tf.train.AdamOptimizer for mnist vs cnn respectively.
+session = tf.Session()
 
-def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
+def fetch_data(segmented_thus_less=False, dim=(img_size, img_size)):
     """
 
     :param segmented_thus_less: if true, fetch segmented else fetch unsegmented
     :param n: number of images to fetch in total
-    :param dim: load images with dimension dim
+    :param dim: load images with dimension dim, different than dim of placeholder X & Y
     :return:
     """
+    # global
     # TO-DO: (1) Segment 3c (2) Put into folders. Same for 4b
     # bin4a = binary image of type 4a
     # bin, grays, originals, conts_ls, canny = alib.load_preprocess_contours("4a", 50, (50, 50), ...
     if not segmented_thus_less:
-        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", n, dim, segmented=False)
-        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", n, dim, segmented=False)
+        segmented = False
     else:
-        bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", n, dim)
-        bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", n, dim)
+        segmented = True
+    
+    bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", BATCH_SIZE, dim, segmented=segmented)
+    bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", BATCH_SIZE, dim, segmented=segmented)
     # dim(bin4a) = 10x30x30
 
     # NOTE: always send in ascending order
@@ -233,7 +295,6 @@ def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
     # backpropagation for each row
 
 
-    # Manager is a design smell
     # name classes in terms of the functional requirement it fulfills
     # Mediator pattern: Objects no longer communicate directly with each other, but instead communicate through the
     #                                                                                           mediator.
@@ -241,20 +302,22 @@ def fetch_data(segmented_thus_less=False, n=10, dim=(30, 30)):
 
     # use 1 out of 10 as validation, make general
 
-    train, valid = mix(arr, ["4a", "4c"]) # note hair type is always [3c, 4a, 4b, 4c], [0, 1, 2, 3] order
-    x_batch, y_true_batch = train
-    x_valid_batch, y_valid_batch = valid
+    #
+    # more than 10 hidden layers
+
+    train, valid = random_mix(arr, ["4a", "4c"]) # note hair type is always [3c, 4a, 4b, 4c], [0, 1, 2, 3] order
+    train_batch_x, train_batch_y = train
+    valid_batch_x, valid_batch_y = valid
 
     
-    # x_batch = arr[0][:train_per*len(arr)]
+    # x_train_batch is feed into x which is a placeholder
+    feed_dict_train = {X: train_batch_x,
+                       Y: train_batch_y}
 
-    feed_dict_train = {x: x_batch,
-                       y_true: y_true_batch}
+    feed_dict_validate = {X: valid_batch_x,
+                          Y: valid_batch_y}
 
-    feed_dict_validate = {x: x_valid_batch,
-                          y_true: y_valid_batch}
-
-
+    session.run(optimize, feed_dict=feed_dict_train)
 
 # Counter for total number of iterations performed so far.
 total_iterations = 0
@@ -272,11 +335,6 @@ def optimize(num_iterations):
     for i in range(total_iterations,
                    total_iterations + num_iterations):
 
-        # Get a batch of training examples.
-        # x_batch now holds a batch of images and
-        # y_true_batch are the true labels for those images.
-        x_batch, y_true_batch, _, cls_batch = data.train.next_batch(train_batch_size)
-        x_valid_batch, y_valid_batch, _, valid_cls_batch = data.valid.next_batch(train_batch_size)
 
         # Convert shape from [num examples, rows, columns, depth]
         # to [num examples, flattened image shape]
@@ -327,6 +385,39 @@ def optimize(num_iterations):
     # Print the time-usage.
     print("Time elapsed: " + str(timedelta(seconds=int(round(time_dif)))))
 
+def fetch_data_single(hair_type, segmented_thus_less=True, dim=(img_size, img_size)):
+    """
+
+    :param segmented_thus_less: get segmented images or no
+    :param dim: the dimension of input images
+    :param hair_type:   hair_type [3c, 4a, 4b, 4c]
+    :return:
+    """
+    if not segmented_thus_less:
+        segmented = False
+    else:
+        segmented = True
+
+    bin4a, _, _, _, _ = alib.load_preprocess_contours(hair_type, BATCH_SIZE, dim, segmented=segmented)
+    idx = int((1-validation_size)*len(bin4a))
+    train_batch_x = bin4a[:idx]
+    train_batch_y = np.zeros((len(train_batch_x)))
+    valid_batch_x = bin4a[idx:]
+    valid_batch_y = np.zeros((len(valid_batch_x)))
+    feed_dict_train = {X: train_batch_x,
+                       Y: train_batch_y}
+
+    feed_dict_validate = {X: valid_batch_x,
+                          Y: valid_batch_y}
+    session.run(optimizer, feed_dict=feed_dict_train)
+
+layer_conv1, weights_conv1 = \
+    new_conv_layer(input=x_image,
+                   num_input_channels=num_channels,
+                   filter_size=filter_size1,
+                   num_filters=num_filters1,
+                   use_pooling=True)
+
 # help(tf.keras)
 # https://www.tensorflow.org/tutorials/deep_cnn
 # vs
@@ -335,6 +426,7 @@ def optimize(num_iterations):
 # http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/#more-452
 # vs
 # https://datascience.stackexchange.com/questions/24511/why-should-the-data-be-shuffled-for-machine-learning-tasks
+# https://www.tensorflow.org/tutorials/images/image_recognition
 
 if __name__ == '__main__':
-    fetch_data(False)
+    fetch_data_single("4a", False)
