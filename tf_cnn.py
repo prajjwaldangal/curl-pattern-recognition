@@ -11,25 +11,25 @@ Our network uses a combination of pixel intensities and weights.
 The neural network specifications:
 Zero padding = 1 on each edge
 Stride = 2 both horizontally and vertically
-    1x32x32 - 256C3   -   MP2 -  16C2  -  MP2   - 8C2  - 10N - 4N - 1N (class prediction)
-    input     32x16x16  32x8x8  16x4x4  16x2x2  8x1x1
+    
+    1x32x32 ----------> 32x16x16 --------> 32x8x8 ----------> 16x4x4 --------> 16x2x2 ---------> 8x1x1
+    input     Conv. 3x3            MP             Conv. 2x2          MP               Conv. 2x2  
+              st=2, 32             2x2            st=2, 16           2x2              st=2, 8
+              filters                               filters                           filters
+              
+              
+    
+    
+    8x1x1 ----------> 10N ---------> 4N -----------> 1N (class prediction)
+          fc layer         fc layer      fc layer
     
 # output volume formula:  (Img width−Filter size+2*Padding)/Stride+1
 
-30x30 input images, 3  conv. layer, 2 max. pool layers, 2 fully-conn. layers
+30x30 input images, 3  conv. layer, 2 max. pool layers, 3 fully-conn. layers
 #relu after conv layer
 loss function = SVM loss
 activation function = relu
 
-# segmentation specifications:
-    segment only the hair part with high precision
-    
-
-07/16/2018 notes for team meeting:
-figured out input with tensorflow
-initialized some of the architecture specifications
-
-    
 """
 
 # Convolutional Layer 1.
@@ -45,7 +45,8 @@ filter_size3 = 2
 num_filters3 = 8
 
 # Fully-connected layer.
-fc_size = 32             # Number of neurons in fully-connected layer.
+fc1_size = 10             # Number of neurons in the first fully-connected layer.
+fc2_size = 7              # second fully_connected layer
 
 # Number of color channels for the images: 1 channel for gray-scale, 3 for RGB.
 num_channels = 1
@@ -66,7 +67,7 @@ classes = ['4a']
 num_classes = len(classes)
 
 # batch size
-BATCH_SIZE = 8
+BATCH_SIZE = 10
 
 # validation split
 validation_size = .14
@@ -78,27 +79,7 @@ train_path = 'data/train/' # + '3c'/'4a'/'4b' ...
 test_path = 'data/test/' # similar to train path
 checkpoint_dir = "models/" #
 
-# the matrices to be learnt
-def new_weights(shape):
-    return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
-
-# the biases, also are learnt
-def new_biases(length):
-    return tf.Variable(tf.constant(0.05, shape=[length]))
-
-# we need to reduce the 4-dim tensor to 2-dim which can be used as 
-# input to the fully-connected layer
-def flatten_layer(layer):
-    # Reshape the layer to [num_images, num_features].
-    # Note that we just set the size of the second dimension
-    # to num_features and the size of the first dimension to -1
-    # which means the size in that dimension is calculated
-    # so the total size of the tensor is unchanged from the reshaping.
-    # i.e. the first dimension will be num_of_elements_
-    layer_flat = tf.reshape(layer, [-1, num_features])
-
-
-# tensor types in tensorflow
+################################ tensors in tensorflow  ###############################################################
 # Rank 0 tensors: tf.Variable("Elephant", tf.string), tf.Variable(451/3.14159/2.2+7j, tf.int16, tf.float64,
 #                                                                                     tf.complex64) respectively
 # Rank 1 tensors: tf.Variable(["Elephant"]/[3.1416, 2.7183]/[2,3,4]/[12+7j, 2-3.5j],
@@ -122,6 +103,30 @@ rank_three_tensor = tf.ones([3,4,5])
 rank_three_tensor_np = np.ones((3,4,5))
 r_two_tf = tf.reshape(rank_three_tensor, [10,-1])
 r_two_np = rank_three_tensor_np.reshape((10,6))
+
+# initialize train x and y placeholders
+X = tf.placeholder(tf.float32, (int(num_classes * BATCH_SIZE * (1-validation_size)), 30, 30, 1), name = 'X')
+Y = tf.placeholder(tf.int8, (int(num_classes * BATCH_SIZE * (1-validation_size))), name='Y')
+
+
+# the matrices to be learnt
+def new_weights(shape):
+    return tf.Variable(tf.truncated_normal(shape, stddev=0.05))
+
+# the biases, also are learnt
+def new_biases(length):
+    return tf.Variable(tf.constant(0.05, shape=[length]))
+
+# we need to reduce the 4-dim tensor to 2-dim which can be used as 
+# input to the fully-connected layer
+def flatten_layer(layer):
+    # Reshape the layer to [num_images, num_features].
+    # Note that we just set the size of the second dimension
+    # to num_features and the size of the first dimension to -1
+    # which means the size in that dimension is calculated
+    # so the total size of the tensor is unchanged from the reshaping.
+    # i.e. the first dimension will be num_of_elements_
+    layer_flat = tf.reshape(layer, [-1, num_features])
 
 def new_conv_layer(input,              # The previous layer.
                    num_input_channels, # Num. channels in prev. layer.
@@ -150,7 +155,8 @@ def new_conv_layer(input,              # The previous layer.
     # is padded with zeroes so the size of the output is the same.
     layer = tf.nn.conv2d(input=input,
                          filter=weights,
-                         strides=[1, 1, 1, 1],
+                         #strides=[1, 1, 1, 1],
+                         strides=[1, 2, 2, 1],
                          padding='SAME')
 
     # Add the biases to the results of the convolution.
@@ -181,12 +187,100 @@ def new_conv_layer(input,              # The previous layer.
     # because we will plot the weights later.
     return layer, weights
 
-# session.run(tf.initialize_all_variables())  --> will be removed after 2017-03-02
-# try help(tf.placeholder) for code with feeding
+def new_fc_layer(input,          # The previous layer.
+                 num_inputs,     # Num. inputs from prev. layer.
+                 num_outputs,    # Num. outputs.
+                 use_relu=True): # Use Rectified Linear Unit (ReLU)?
+
+    # Create new weights and biases.
+    weights = new_weights(shape=[num_inputs, num_outputs])
+    biases = new_biases(length=num_outputs)
+
+    # Calculate the layer as the matrix multiplication of
+    # the input and weights, and then add the bias-values.
+    layer = tf.matmul(input, weights) + biases
+
+    # Use ReLU?
+    if use_relu:
+        layer = tf.nn.relu(layer)
+
+    return layer
+
+layer_conv1, weights_conv1 = \
+    new_conv_layer(input=X,
+                   num_input_channels=num_channels,
+                   filter_size=filter_size1,
+                   num_filters=num_filters1,
+                   use_pooling=True)
+
+layer_conv2, weights_conv2 = \
+    new_conv_layer(input=layer_conv1,
+                   num_input_channels=num_channels,
+                   filter_size=filter_size2,
+                   num_filters=num_filters2,
+                   use_pooling=True)
+
+layer_conv3, weights_conv3 = \
+    new_conv_layer(input=layer_conv2,
+                   num_input_channels=num_channels,
+                   filter_size=filter_size3,
+                   num_filters=num_filters3,
+                   use_pooling=False)
+print(layer_conv3)
+
+# layer_fc2 = new_fc_layer()
+# tf.train.GradientDescentOptimizer vs tf.train.AdamOptimizer for mnist vs cnn respectively.
+session = tf.Session()
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=layer_fc2,
+                                                        labels=y_true)
+cost = tf.reduce_mean(cross_entropy)
+optimizer = tf.train.AdamOptimizer(learning_rate=1e-4).minimize(cost)
+# Counter for total number of iterations performed so far.
+total_iterations = 0
+import time
+
+# what is img_size_flat?
+def fetch_data_single(hair_type, segmented_thus_less=True, dim=(img_size, img_size)):
+    """
+
+    :param segmented_thus_less: get segmented images or no
+    :param dim: the dimension of input images
+    :param hair_type:   hair_type [3c, 4a, 4b, 4c]
+    :return:
+    """
+    if not segmented_thus_less:
+        segmented = False
+    else:
+        segmented = True
+
+    bin4a, _, _, _, _ = alib.load_preprocess_contours(hair_type, BATCH_SIZE, dim, segmented=segmented)
+    # once multiple classes' training started, use arr = [bin3c, bin4a, ...]
+    idx = int((1-validation_size)*len(bin4a))
+    train_batch_x = bin4a[:idx]
+    train_batch_y = np.zeros((len(train_batch_x)))
+    valid_batch_x = bin4a[idx:]
+    valid_batch_y = np.zeros((len(valid_batch_x)))
+    feed_dict_train = {X: train_batch_x,
+                       Y: train_batch_y}
+
+    #feed_dict_validate = {X: valid_batch_x,
+    #                      Y: valid_batch_y}
+    session.run(optimizer, feed_dict=feed_dict_train)
+    # Print status at end of each epoch (defined as full pass through training dataset).
+
+# help(tf.keras)
+# https://www.tensorflow.org/tutorials/deep_cnn
+# vs
+# https://github.com/rdcolema/tensorflow-image-classification/blob/master/cnn.ipynb
+# vs
+# http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/#more-452
+# vs
+# https://datascience.stackexchange.com/questions/24511/why-should-the-data-be-shuffled-for-machine-learning-tasks
+# https://www.tensorflow.org/tutorials/images/image_recognition
 
 def random_mix(ls, hair_types):
     """
-    :param ls: list of different hair type images, num_classes x num_examples_of_each_class x img_height x img_width
+    :param ls: list of different hair type images, num_classes x BATCH_SIZE x img_height x img_width
     :return: train and validation image sets along with their corresponding labels
     """
     if ls == [] or ls[0] == [] or ls[1] == []:
@@ -261,172 +355,5 @@ def random_mix(ls, hair_types):
     assure(ls[0]+ls[1], train_rtrn_x, train_rtrn_y, valid_rtrn_x, valid_rtrn_y)
     return [train_rtrn_x, train_rtrn_y], [valid_rtrn_x, valid_rtrn_y]
 
-# concerned with only the input at this point
-# dim = len_hair_type * BATCH_SIZE
-X = tf.placeholder(tf.float32, (num_classes * BATCH_SIZE, 30, 30), name = 'X')
-Y = tf.placeholder(tf.int8, (num_classes * BATCH_SIZE), name='Y')
-# tf.train.GradientDescentOptimizer vs tf.train.AdamOptimizer for mnist vs cnn respectively.
-session = tf.Session()
-
-def fetch_data(segmented_thus_less=False, dim=(img_size, img_size)):
-    """
-
-    :param segmented_thus_less: if true, fetch segmented else fetch unsegmented
-    :param n: number of images to fetch in total
-    :param dim: load images with dimension dim, different than dim of placeholder X & Y
-    :return:
-    """
-    # global
-    # TO-DO: (1) Segment 3c (2) Put into folders. Same for 4b
-    # bin4a = binary image of type 4a
-    # bin, grays, originals, conts_ls, canny = alib.load_preprocess_contours("4a", 50, (50, 50), ...
-    if not segmented_thus_less:
-        segmented = False
-    else:
-        segmented = True
-    
-    bin4a, _, _, _, _ = alib.load_preprocess_contours("4a", BATCH_SIZE, dim, segmented=segmented)
-    bin4c, _, _, _, _ = alib.load_preprocess_contours("4c", BATCH_SIZE, dim, segmented=segmented)
-    # dim(bin4a) = 10x30x30
-
-    # NOTE: always send in ascending order
-    arr = [bin4a, bin4c]
-    # learning rate check after each epoch
-    # backpropagation for each row
-
-
-    # name classes in terms of the functional requirement it fulfills
-    # Mediator pattern: Objects no longer communicate directly with each other, but instead communicate through the
-    #                                                                                           mediator.
-    # https://softwareengineering.stackexchange.com/questions/350142/how-can-i-manage-the-code-base-of-significantly-complex-software
-
-    # use 1 out of 10 as validation, make general
-
-    #
-    # more than 10 hidden layers
-
-    train, valid = random_mix(arr, ["4a", "4c"]) # note hair type is always [3c, 4a, 4b, 4c], [0, 1, 2, 3] order
-    train_batch_x, train_batch_y = train
-    valid_batch_x, valid_batch_y = valid
-
-    
-    # x_train_batch is feed into x which is a placeholder
-    feed_dict_train = {X: train_batch_x,
-                       Y: train_batch_y}
-
-    feed_dict_validate = {X: valid_batch_x,
-                          Y: valid_batch_y}
-
-    session.run(optimize, feed_dict=feed_dict_train)
-
-# Counter for total number of iterations performed so far.
-total_iterations = 0
-import time
-def optimize(num_iterations):
-    # Ensure we update the global variable rather than a local copy.
-    global total_iterations
-
-    # Start-time used for printing time-usage below.
-    start_time = time.time()
-
-    best_val_loss = float("inf")
-    patience = 0
-
-    for i in range(total_iterations,
-                   total_iterations + num_iterations):
-
-
-        # Convert shape from [num examples, rows, columns, depth]
-        # to [num examples, flattened image shape]
-
-        x_batch = x_batch.reshape(train_batch_size, img_size_flat)
-        x_valid_batch = x_valid_batch.reshape(train_batch_size, img_size_flat)
-
-        # Put the batch into a dict with the proper names
-        # for placeholder variables in the TensorFlow graph.
-        feed_dict_train = {x: x_batch,
-                           y_true: y_true_batch}
-
-        feed_dict_validate = {x: x_valid_batch,
-                              y_true: y_valid_batch}
-
-        # Run the optimizer using this batch of training data.
-        # TensorFlow assigns the variables in feed_dict_train
-        # to the placeholder variables and then runs the optimizer.
-        session.run(optimizer, feed_dict=feed_dict_train)
-
-
-        # Print status at end of each epoch (defined as full pass through training dataset).
-        if i % int(data.train.num_examples/batch_size) == 0:
-            val_loss = session.run(cost, feed_dict=feed_dict_validate)
-            epoch = int(i / int(data.train.num_examples/batch_size))
-
-            print_progress(epoch, feed_dict_train, feed_dict_validate, val_loss)
-
-            if early_stopping:
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    patience = 0
-                else:
-                    patience += 1
-
-                if patience == early_stopping:
-                    break
-
-    # Update the total number of iterations performed.
-    total_iterations += num_iterations
-
-    # Ending time.
-    end_time = time.time()
-
-    # Difference between start and end-times.
-    time_dif = end_time - start_time
-
-    # Print the time-usage.
-    print("Time elapsed: " + str(timedelta(seconds=int(round(time_dif)))))
-
-def fetch_data_single(hair_type, segmented_thus_less=True, dim=(img_size, img_size)):
-    """
-
-    :param segmented_thus_less: get segmented images or no
-    :param dim: the dimension of input images
-    :param hair_type:   hair_type [3c, 4a, 4b, 4c]
-    :return:
-    """
-    if not segmented_thus_less:
-        segmented = False
-    else:
-        segmented = True
-
-    bin4a, _, _, _, _ = alib.load_preprocess_contours(hair_type, BATCH_SIZE, dim, segmented=segmented)
-    idx = int((1-validation_size)*len(bin4a))
-    train_batch_x = bin4a[:idx]
-    train_batch_y = np.zeros((len(train_batch_x)))
-    valid_batch_x = bin4a[idx:]
-    valid_batch_y = np.zeros((len(valid_batch_x)))
-    feed_dict_train = {X: train_batch_x,
-                       Y: train_batch_y}
-
-    feed_dict_validate = {X: valid_batch_x,
-                          Y: valid_batch_y}
-    session.run(optimizer, feed_dict=feed_dict_train)
-
-layer_conv1, weights_conv1 = \
-    new_conv_layer(input=x_image,
-                   num_input_channels=num_channels,
-                   filter_size=filter_size1,
-                   num_filters=num_filters1,
-                   use_pooling=True)
-
-# help(tf.keras)
-# https://www.tensorflow.org/tutorials/deep_cnn
-# vs
-# https://github.com/rdcolema/tensorflow-image-classification/blob/master/cnn.ipynb
-# vs
-# http://www.wildml.com/2015/12/implementing-a-cnn-for-text-classification-in-tensorflow/#more-452
-# vs
-# https://datascience.stackexchange.com/questions/24511/why-should-the-data-be-shuffled-for-machine-learning-tasks
-# https://www.tensorflow.org/tutorials/images/image_recognition
-
 if __name__ == '__main__':
-    fetch_data_single("4a", False)
+    pass#fetch_data_single("4a", False)
